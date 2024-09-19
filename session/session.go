@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/google/uuid"
 	"github.com/paroxity/portal/event"
@@ -68,7 +69,11 @@ func New(conn *minecraft.Conn, store *Store, loadBalancer LoadBalancer, log inte
 		uuid: uuid.MustParse(conn.IdentityData().Identity),
 	}
 
-	store.LoadFromName(conn.ClientData().ThirdPartyName)
+	_, alreadyConnected := store.LoadFromName(conn.ClientData().ThirdPartyName)
+
+	if alreadyConnected {
+		return s, fmt.Errorf("already connected")
+	}
 
 	store.Store(s)
 	defer func() {
