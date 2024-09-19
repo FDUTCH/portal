@@ -13,6 +13,9 @@ import (
 // handlePackets handles the packets sent between the client and the server. Processes such as runtime
 // translations are also handled here.
 func handlePackets(s *Session) {
+
+	s.currentDimension.Store(s.serverConn.GameData().Dimension)
+
 	go func() {
 		defer s.Close()
 		for {
@@ -31,9 +34,10 @@ func handlePackets(s *Session) {
 			case *packet.PlayerAction:
 				if pk.ActionType == protocol.PlayerActionDimensionChangeDone {
 					if s.transferring.Load() {
+
 						s.serverMu.Lock()
 						gameData := s.tempServerConn.GameData()
-						s.changeDimension(packet.DimensionOverworld, gameData.PlayerPosition)
+						s.changeDimension(gameData.Dimension, gameData.PlayerPosition)
 
 						var w sync.WaitGroup
 						w.Add(2)
@@ -163,6 +167,8 @@ func handlePackets(s *Session) {
 				s.scoreboards.Remove(pk.ObjectiveName)
 			case *packet.SetDisplayObjective:
 				s.scoreboards.Add(pk.ObjectiveName)
+			case *packet.ChangeDimension:
+				s.currentDimension.Store(pk.Dimension)
 			}
 
 			ctx := event.C()

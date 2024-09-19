@@ -37,11 +37,12 @@ type Session struct {
 	serverConn     *minecraft.Conn
 	tempServerConn *minecraft.Conn
 
-	entities    *i64set.Set
-	playerList  *b16set.Set
-	effects     *i32set.Set
-	bossBars    *i64set.Set
-	scoreboards *strset.Set
+	currentDimension atomic.Int32
+	entities         *i64set.Set
+	playerList       *b16set.Set
+	effects          *i32set.Set
+	bossBars         *i64set.Set
+	scoreboards      *strset.Set
 
 	uuid uuid.UUID
 
@@ -67,6 +68,8 @@ func New(conn *minecraft.Conn, store *Store, loadBalancer LoadBalancer, log inte
 		uuid: uuid.MustParse(conn.IdentityData().Identity),
 	}
 
+	store.LoadFromName(conn.ClientData().ThirdPartyName)
+
 	store.Store(s)
 	defer func() {
 		if err != nil {
@@ -87,6 +90,7 @@ func New(conn *minecraft.Conn, store *Store, loadBalancer LoadBalancer, log inte
 		srvConn, err := s.dial(srv)
 		if err != nil {
 			log.Errorf("failed to dial server %s: %w", srv.Address(), err)
+			store.Delete(s.UUID())
 			return
 		}
 
@@ -94,6 +98,7 @@ func New(conn *minecraft.Conn, store *Store, loadBalancer LoadBalancer, log inte
 		if err = s.login(); err != nil {
 			_ = srvConn.Close()
 			log.Errorf("failed to login to server %s: %w", srv.Address(), err)
+			store.Delete(s.UUID())
 			return
 		}
 		log.Infof("%s has been connected to server %s", conn.IdentityData().DisplayName, srv.Name())
@@ -205,7 +210,7 @@ func (s *Session) Transfer(srv *server.Server) (err error) {
 
 		var proxyDimension int32
 		for _, dimension := range []int32{packet.DimensionOverworld, packet.DimensionNether, packet.DimensionEnd} {
-			if dimension != s.serverConn.GameData().Dimension && dimension != conn.GameData().Dimension {
+			if dimension != s.currentDimension.Load() && dimension != conn.GameData().Dimension {
 				proxyDimension = dimension
 				break
 			}
@@ -220,7 +225,7 @@ func (s *Session) Transfer(srv *server.Server) (err error) {
 			for z := int32(-1); z <= 1; z++ {
 				_ = s.conn.WritePacket(&packet.LevelChunk{
 					Position:      protocol.ChunkPos{chunkX + x, chunkZ + z},
-					Dimension:     packet.DimensionNether,
+					Dimension:     proxyDimension,
 					SubChunkCount: 1,
 					RawPayload:    emptyChunk(proxyDimension),
 				})
@@ -357,4 +362,53 @@ func (s *Session) changeDimension(dimension int32, pos mgl32.Vec3) {
 	})
 	_ = s.conn.WritePacket(&packet.StopSound{StopAll: true})
 	_ = s.conn.WritePacket(&packet.PlayerAction{ActionType: protocol.PlayerActionDimensionChangeDone})
+}
+
+func (s *Session) finishTransfer() {
+	s.serverMu.Lock()
+	gameData := s.tempServerConn.GameData()
+	s.changeDimension(gameData.Dimension, gameData.PlayerPosition)
+
+	var w sync.WaitGroup
+	w.Add(2)
+	go func() {
+		s.clearEntities()
+		s.clearEffects()
+		w.Done()
+	}()
+	go func() {
+		s.clearPlayerList()
+		s.clearBossBars()
+		s.clearScoreboard()
+		w.Done()
+	}()
+
+	_ = s.conn.WritePacket(&packet.MovePlayer{
+		EntityRuntimeID: s.originalRuntimeID,
+		Position:        gameData.PlayerPosition,
+		Pitch:           gameData.Pitch,
+		Yaw:             gameData.Yaw,
+		Mode:            packet.MoveModeReset,
+	})
+
+	_ = s.conn.WritePacket(&packet.LevelEvent{EventType: packet.LevelEventStopRaining, EventData: 10000})
+	_ = s.conn.WritePacket(&packet.LevelEvent{EventType: packet.LevelEventStopThunderstorm})
+	_ = s.conn.WritePacket(&packet.SetDifficulty{Difficulty: uint32(gameData.Difficulty)})
+	_ = s.conn.WritePacket(&packet.GameRulesChanged{GameRules: gameData.GameRules})
+	_ = s.conn.WritePacket(&packet.SetPlayerGameType{GameType: gameData.PlayerGameMode})
+
+	w.Wait()
+
+	_ = s.serverConn.Close()
+
+	s.serverConn = s.tempServerConn
+	s.tempServerConn = nil
+	s.serverMu.Unlock()
+
+	s.updateTranslatorData(gameData)
+
+	s.transferring.Store(false)
+	s.postTransfer.Store(true)
+
+	s.log.Infof("%s finished transfering to server %s", s.Conn().IdentityData().DisplayName, s.Server().Name())
 }

@@ -111,16 +111,13 @@ func (t *translator) translatePacket(pk packet.Packet) {
 	case *packet.EmoteList:
 		pk.PlayerRuntimeID = t.translateRuntimeID(pk.PlayerRuntimeID)
 	case *packet.Event:
-		pk.EntityRuntimeID = t.translateRuntimeID(pk.EntityRuntimeID)
+		pk.EntityRuntimeID = int64(t.translateRuntimeID(uint64(pk.EntityRuntimeID)))
 		switch data := pk.Event.(type) {
 		case *protocol.MobKilledEvent:
 			data.KillerEntityUniqueID = t.translateUniqueID(data.KillerEntityUniqueID)
 			data.VictimEntityUniqueID = t.translateUniqueID(data.VictimEntityUniqueID)
 		case *protocol.BossKilledEvent:
 			data.BossEntityUniqueID = t.translateUniqueID(data.BossEntityUniqueID)
-		case *protocol.PetDiedEvent:
-			data.KillerEntityUniqueID = t.translateUniqueID(data.KillerEntityUniqueID)
-			data.PetEntityUniqueID = t.translateUniqueID(data.PetEntityUniqueID)
 		}
 	case *packet.Interact:
 		pk.TargetEntityRuntimeID = t.translateRuntimeID(pk.TargetEntityRuntimeID)
@@ -262,18 +259,18 @@ func (t *translator) translateEntityLink(x protocol.EntityLink) protocol.EntityL
 func (t *translator) translateEntityMetadata(x map[uint32]interface{}) map[uint32]interface{} {
 	for k, v := range x {
 		switch k {
-		case 5: // Owner ID
-			x[5] = t.translateUniqueID(v.(int64))
-		case 6: // Target ID
-			x[6] = t.translateUniqueID(v.(int64))
-		case 17: // Shooter ID
-			x[17] = t.translateUniqueID(v.(int64))
-		case 37: // Leash holder ID
-			x[37] = t.translateUniqueID(v.(int64))
-		case 88: // Player agent ID
-			x[88] = t.translateUniqueID(v.(int64))
-		case 124: // Base Runtime ID
-			x[124] = t.translateRuntimeID(v.(uint64))
+		case protocol.EntityDataKeyOwner: // Owner ID
+			x[protocol.EntityDataKeyOwner] = t.translateUniqueID(v.(int64))
+		case protocol.EntityDataKeyTarget: // Target ID
+			x[protocol.EntityDataKeyTarget] = t.translateUniqueID(v.(int64))
+		//case protocol.EntityDataKeyDisplayTileRuntimeID: // Shooter ID
+		//	x[protocol.EntityDataKeyDisplayTileRuntimeID] = t.translateUniqueID(v.(int64))
+		case protocol.EntityDataKeyLeashHolder: // Leash holder ID
+			x[protocol.EntityDataKeyLeashHolder] = t.translateUniqueID(v.(int64))
+		case protocol.EntityDataKeyAgent: // Player agent ID
+			x[protocol.EntityDataKeyAgent] = t.translateUniqueID(v.(int64))
+			//case protocol.EntityDataKeyBaseRuntimeID: // Base Runtime ID
+			//	x[protocol.EntityDataKeyBaseRuntimeID] = t.translateRuntimeID(v.(uint64))
 		}
 	}
 	return x
