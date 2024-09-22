@@ -361,6 +361,7 @@ func (s *Session) clearScoreboard() {
 }
 
 func (s *Session) changeDimension(dimension int32, pos mgl32.Vec3) {
+	s.currentDimension.Store(dimension)
 	_ = s.conn.WritePacket(&packet.ChangeDimension{
 		Dimension: dimension,
 		Position:  pos,
