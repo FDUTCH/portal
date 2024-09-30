@@ -66,7 +66,8 @@ func handlePackets(s *Session) {
 						_ = s.conn.WritePacket(&packet.SetDifficulty{Difficulty: uint32(gameData.Difficulty)})
 						_ = s.conn.WritePacket(&packet.GameRulesChanged{GameRules: gameData.GameRules})
 						_ = s.conn.WritePacket(&packet.SetPlayerGameType{GameType: gameData.PlayerGameMode})
-
+						_ = s.clientConn.WritePacket(&packet.SetTime{Time: int32(serverGameData.Time)})
+						
 						w.Wait()
 
 						_ = s.serverConn.Close()
