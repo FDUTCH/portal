@@ -122,6 +122,9 @@ func (s *Session) dial(srv *server.Server) (*minecraft.Conn, error) {
 	return minecraft.Dialer{
 		ClientData:   s.conn.ClientData(),
 		IdentityData: i,
+		DownloadResourcePack: func(_ uuid.UUID, _ string, _, _ int) bool {
+			return false
+		},
 	}.Dial("raknet", srv.Address())
 }
 
