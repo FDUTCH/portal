@@ -29,6 +29,8 @@ func handlePackets(s *Session) {
 			s.translatePacket(pk)
 
 			switch pk := pk.(type) {
+			case *packet.ScriptMessage:
+				continue
 			case *packet.BookEdit:
 				pk.XUID = ""
 			case *packet.PlayerAction:
@@ -67,7 +69,7 @@ func handlePackets(s *Session) {
 						_ = s.conn.WritePacket(&packet.GameRulesChanged{GameRules: gameData.GameRules})
 						_ = s.conn.WritePacket(&packet.SetPlayerGameType{GameType: gameData.PlayerGameMode})
 						_ = s.conn.WritePacket(&packet.SetTime{Time: int32(gameData.Time)})
-						
+
 						w.Wait()
 
 						_ = s.serverConn.Close()
