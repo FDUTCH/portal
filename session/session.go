@@ -122,7 +122,7 @@ func (s *Session) dial(srv *server.Server) (*minecraft.Conn, error) {
 	i := s.conn.IdentityData()
 	i.XUID = ""
 
-	serverConn, err := minecraft.Dialer{
+	return minecraft.Dialer{
 		ClientData:   s.conn.ClientData(),
 		IdentityData: i,
 		DownloadResourcePack: func(_ uuid.UUID, _ string, _, _ int) bool {
@@ -130,24 +130,6 @@ func (s *Session) dial(srv *server.Server) (*minecraft.Conn, error) {
 		},
 		Protocol: s.conn.Proto(),
 	}.Dial("raknet", srv.Address())
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := json.Marshal(playerData{
-		Xuid:          s.conn.IdentityData().XUID,
-		RemoteAddress: strings.Split(s.conn.RemoteAddr().String(), ":")[0],
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	serverConn.WritePacket(&packet.ScriptMessage{
-		Identifier: "player_data",
-		Data:       data,
-	})
-
-	return serverConn, nil
 }
 
 // login performs the initial login sequence for the session.
@@ -393,9 +375,4 @@ func (s *Session) changeDimension(dimension int32, pos mgl32.Vec3) {
 	})
 	_ = s.conn.WritePacket(&packet.StopSound{StopAll: true})
 	_ = s.conn.WritePacket(&packet.PlayerAction{ActionType: protocol.PlayerActionDimensionChangeDone})
-}
-
-type playerData struct {
-	Xuid          string `json:"xuid"`
-	RemoteAddress string `json:"remote_address"`
 }
