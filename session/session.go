@@ -128,6 +128,7 @@ func (s *Session) dial(srv *server.Server) (*minecraft.Conn, error) {
 		DownloadResourcePack: func(_ uuid.UUID, _ string, _, _ int) bool {
 			return false
 		},
+		Protocol: s.conn.Proto(),
 	}.Dial("raknet", srv.Address())
 	if err != nil {
 		return nil, err
