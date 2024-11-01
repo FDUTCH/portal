@@ -29,8 +29,6 @@ func handlePackets(s *Session) {
 			s.translatePacket(pk)
 
 			switch pk := pk.(type) {
-			case *packet.ScriptMessage:
-				continue
 			case *packet.BookEdit:
 				pk.XUID = ""
 			case *packet.PlayerAction:
